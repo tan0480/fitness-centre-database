@@ -1,0 +1,67 @@
+SET PAGESIZE 50000
+SET LINESIZE 110
+
+COLUMN member_name FORMAT A20
+COLUMN coach_name FORMAT A20
+COLUMN room_name FORMAT A30
+COLUMN scheduled_date FORMAT A15
+COLUMN attendance FORMAT A10
+COLUMN member_id FORMAT A10
+
+ACCEPT v_start_date PROMPT 'Enter start date (YYYY-MM-DD): '
+ACCEPT v_end_date   PROMPT 'Enter end date (YYYY-MM-DD): '
+
+TTITLE CENTER 'Member Class Attendance Report' SKIP 2 CENTER 'From &v_start_date to &v_end_date' SKIP 2
+
+SELECT
+    m.MemberID AS member_id,
+    m.Name AS member_name,
+    c.Name AS coach_name,
+    r.RoomName AS room_name,
+    TO_CHAR(cs.ClassDate, 'YYYY-MM-DD') AS scheduled_date,
+    b.Attendance
+FROM Member m
+JOIN Booking b
+    ON m.MemberID = b.MemberID
+JOIN ClassScheduled cs
+    ON b.ScheduledID = cs.ScheduledID
+JOIN Coach c
+    ON cs.CoachID = c.CoachID
+JOIN Room r
+    ON cs.RoomID = r.RoomID
+WHERE cs.ClassDate BETWEEN
+      TO_DATE('&v_start_date', 'YYYY-MM-DD')
+  AND TO_DATE('&v_end_date', 'YYYY-MM-DD')
+ORDER BY cs.ClassDate, m.Name;
+
+TTITLE OFF;
+
+PROMPT
+PROMPT Summary for the report:
+PROMPT Reporting Period: &v_start_date to &v_end_date
+COLUMN summary_line FORMAT A100 HEADING 'Summary'
+
+WITH attendance_counts AS (
+    SELECT COUNT(*) AS total_records,
+           COUNT(CASE WHEN UPPER(TRIM(b.Attendance)) = 'PRESENT' THEN 1 END) AS present_records,
+           COUNT(CASE WHEN UPPER(TRIM(b.Attendance)) = 'ABSENT' THEN 1 END) AS absent_records
+    FROM Member m
+    JOIN Booking b ON m.MemberID = b.MemberID
+    JOIN ClassScheduled cs ON b.ScheduledID = cs.ScheduledID
+    JOIN Coach c ON cs.CoachID = c.CoachID
+    JOIN Room r ON cs.RoomID = r.RoomID
+    WHERE cs.ClassDate BETWEEN TO_DATE('&v_start_date', 'YYYY-MM-DD')
+                           AND TO_DATE('&v_end_date', 'YYYY-MM-DD')
+)
+SELECT summary_line
+FROM (
+    SELECT 1 AS sort_order, 'Total Attendance Records: ' || TO_CHAR(total_records) AS summary_line
+    FROM attendance_counts
+    UNION ALL
+    SELECT 2, 'Total Present Records: ' || TO_CHAR(present_records) FROM attendance_counts
+    UNION ALL
+    SELECT 3, 'Total Absent Records: ' || TO_CHAR(absent_records) FROM attendance_counts
+)
+ORDER BY sort_order;
+
+COLUMN summary_line CLEAR
