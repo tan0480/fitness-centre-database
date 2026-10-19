@@ -1,0 +1,127 @@
+CREATE TABLE Room (
+	RoomID		VARCHAR (5)  NOT NULL,
+	RoomName	VARCHAR (50) NOT NULL,
+	Capacity	NUMBER (3),
+	PRIMARY KEY (RoomID)
+);
+
+CREATE TABLE Coach (
+	CoachID		VARCHAR (5)  NOT NULL,
+	Name		VARCHAR (30) NOT NULL,
+	Gender		CHAR (1),
+	PhoneNum	VARCHAR (15) ,
+	Specialization	VARCHAR (30) NOT NULL,
+	PRIMARY KEY (CoachID),
+	CONSTRAINT chk_gender1 check (UPPER(gender) in ('M','F'))
+); 
+
+CREATE TABLE Equipment (
+	EquipmentID		VARCHAR (5)  NOT NULL,
+	EquipmentName		VARCHAR (30) NOT NULL,
+	MaintenanceStatus 	VARCHAR (30) NOT NULL,
+	Category		VARCHAR (30) NOT NULL,
+	PurchaseDate		DATE         NOT NULL,
+	PRIMARY KEY (EquipmentID)
+);
+
+CREATE TABLE Member (
+	MemberID	VARCHAR (5)  NOT NULL,
+	Name		VARCHAR (30) NOT NULL,
+	Gender		CHAR (1),
+	PhoneNum	VARCHAR (15) ,
+	Email		VARCHAR (30) ,
+	PRIMARY KEY (MemberID),
+	CONSTRAINT chk_email check (REGEXP_LIKE(email,'^[a-zA-Z]\w+@(\S+)$')),
+	CONSTRAINT chk_gender2 check (UPPER(gender) in ('M','F'))
+);
+
+CREATE TABLE Locker (
+	LockerID	VARCHAR (5)  NOT NULL,
+	LockerNumber	VARCHAR (5)  NOT NULL,
+	LockerType	VARCHAR (10) NOT NULL,
+	PRIMARY KEY (LockerID)
+);
+
+CREATE TABLE MembershipPlan (
+	PlanID		 VARCHAR (5)  NOT NULL,
+	PlanName	 VARCHAR (30) NOT NULL,
+	DurationMonths NUMBER (3)     NOT NULL,
+	Price		 NUMBER (8,2) NOT NULL,
+	PRIMARY KEY (PlanID)
+);
+	
+CREATE TABLE ClassScheduled (
+	ScheduledID	VARCHAR (5) 	NOT NULL,
+	CoachID		VARCHAR (5) 	NOT NULL,
+	RoomID      	VARCHAR (5) 	NOT NULL,
+	ClassDate   	DATE 		NOT NULL,
+	StartTime   	DATE 		NOT NULL,
+	EndTime     	DATE 		NOT NULL,
+	PRIMARY KEY (ScheduledID),
+	FOREIGN KEY (CoachID) REFERENCES Coach(CoachID),
+    	FOREIGN KEY (RoomID)  REFERENCES Room(RoomID),
+	CONSTRAINT chk_time CHECK (EndTime > StartTime)
+);
+
+CREATE TABLE Booking (
+	ScheduledID	VARCHAR (5)  NOT NULL,
+	MemberID	VARCHAR (5)  NOT NULL,
+	BookingDate	DATE         NOT NULL,
+	Status		VARCHAR (10) NOT NULL,
+	Attendance	VARCHAR (10) NOT NULL,
+	PRIMARY KEY (ScheduledID,MemberID),
+	FOREIGN KEY (ScheduledID) REFERENCES ClassScheduled(ScheduledID),
+    	FOREIGN KEY (MemberID)  REFERENCES Member(MemberID)
+);
+
+CREATE TABLE EquipmentBooking (
+	EquipmentBookingID	VARCHAR (6) NOT NULL,
+	EquipmentID	     	VARCHAR (5) NOT NULL,
+	CoachID			VARCHAR (5) NOT NULL,
+	BookingDate		DATE	    NOT NULL,
+	StartTime		DATE	    NOT NULL,
+	EndTime			DATE	    NOT NULL,
+	PRIMARY KEY (EquipmentBookingID),
+	FOREIGN KEY (EquipmentID) REFERENCES Equipment(EquipmentID),
+    	FOREIGN KEY (CoachID)  REFERENCES Coach(CoachID),
+	CONSTRAINT chk_equipment_time CHECK (EndTime > StartTime)	
+);
+
+CREATE TABLE LockerRental (
+	MemberID	VARCHAR (5)  NOT NULL,
+	LockerID	VARCHAR (5)  NOT NULL,
+	StartTime	DATE	     NOT NULL,
+	EndTime		DATE	     NOT NULL,
+	LockerStatus	VARCHAR (10) NOT NULL,
+	RentalDate	DATE	     NOT NULL,
+	PRIMARY KEY (MemberID,LockerID,RentalDate),
+	FOREIGN KEY (LockerID) REFERENCES Locker(LockerID),
+    	FOREIGN KEY (MemberID)  REFERENCES Member(MemberID),
+	CONSTRAINT chk_locker_time CHECK (EndTime > StartTime)	
+);
+
+CREATE TABLE Membership (
+	MembershipID	VARCHAR (5) NOT NULL,
+	PlanID		VARCHAR (5) NOT NULL,
+	MemberID	VARCHAR (5) NOT NULL,
+	StartTime	DATE	    NOT NULL,
+	EndTime		DATE        NOT NULL,
+	Status		VARCHAR(8)  NOT NULL,
+	PRIMARY KEY (MembershipID),
+	FOREIGN KEY (PlanID) REFERENCES MembershipPlan(PlanID),
+    	FOREIGN KEY (MemberID)  REFERENCES Member(MemberID),
+	CONSTRAINT chk_membership_time CHECK (EndTime > StartTime)
+);
+
+CREATE TABLE Payment (
+	PaymentID	VARCHAR (5)  NOT NULL,
+	MembershipID	VARCHAR (5)  NOT NULL,
+	PaymentDate	DATE         NOT NULL,
+	PaymentMethod	VARCHAR (20) NOT NULL,
+	PRIMARY KEY (PaymentID),
+	FOREIGN KEY (MembershipID)  REFERENCES Membership(MembershipID)
+);
+
+
+
+
