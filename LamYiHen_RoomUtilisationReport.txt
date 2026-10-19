@@ -1,0 +1,61 @@
+SET PAGESIZE 50000
+SET LINESIZE 45
+
+COLUMN room_name FORMAT A30
+COLUMN total_classes FORMAT 999
+
+ACCEPT v_month PROMPT 'Enter month (MM): '
+ACCEPT v_year PROMPT 'Enter year (YYYY): '
+
+TTITLE CENTER 'Room Utilisation Report' SKIP 2 CENTER 'Month &v_month / Year &v_year' SKIP 2
+
+
+SELECT
+    r.RoomName AS room_name,
+    COUNT(cs.ScheduledID) AS total_classes
+FROM ClassScheduled cs
+JOIN Room r
+    ON cs.RoomID = r.RoomID
+WHERE EXTRACT(MONTH FROM cs.ClassDate) = &v_month
+  AND EXTRACT(YEAR FROM cs.CLassDate) = &v_year
+GROUP BY r.RoomName
+ORDER BY total_classes DESC;
+
+TTITLE OFF;
+
+PROMPT
+PROMPT Summary for the report:
+PROMPT Reporting Month/Year: &v_month / &v_year
+SET LINESIZE 110
+COLUMN summary_line FORMAT A100 HEADING 'Summary'
+
+WITH room_counts AS (
+    SELECT r.RoomName AS room_name, COUNT(cs.ScheduledID) AS total_classes
+    FROM ClassScheduled cs
+    JOIN Room r ON cs.RoomID = r.RoomID
+    WHERE EXTRACT(MONTH FROM cs.ClassDate) = &v_month
+      AND EXTRACT(YEAR FROM cs.ClassDate) = &v_year
+    GROUP BY r.RoomName
+), ranked_rooms AS (
+    SELECT room_name, total_classes,
+           MAX(total_classes) OVER () AS most_classes,
+           MIN(total_classes) OVER () AS least_classes
+    FROM room_counts
+)
+SELECT summary_line
+FROM (
+    SELECT CASE WHEN total_classes = most_classes THEN 1 ELSE 2 END AS sort_order,
+           CASE WHEN most_classes = least_classes THEN 'Equal-Usage Room: '
+                WHEN total_classes = most_classes THEN 'High-Usage Room: '
+                ELSE 'Low-Usage Room: ' END
+           || room_name || ' (classes: ' || TO_CHAR(total_classes) || ')' AS summary_line
+    FROM ranked_rooms
+    WHERE total_classes = most_classes OR total_classes = least_classes
+    UNION ALL
+    SELECT 1, 'No classes in the selected month/year.' FROM dual
+    WHERE NOT EXISTS (SELECT 1 FROM room_counts)
+)
+ORDER BY sort_order, summary_line;
+
+COLUMN summary_line CLEAR
+SET LINESIZE 45
