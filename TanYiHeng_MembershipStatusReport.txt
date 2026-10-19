@@ -1,0 +1,71 @@
+SET PAGESIZE 50000
+SET LINESIZE 110
+
+COLUMN member_id FORMAT A10
+COLUMN member_name FORMAT A20
+COLUMN plan_id FORMAT A10
+COLUMN plan_name FORMAT A30
+COLUMN payment_method FORMAT A15
+COLUMN membership_status FORMAT A20
+
+ACCEPT v_status PROMPT 'Enter membership status (Active / Inactive only): '
+
+TTITLE CENTER 'Membership Status Report' SKIP 2 CENTER 'Status Selected: &v_status' SKIP 2
+
+
+SELECT
+    m.MemberID AS member_id,
+    m.Name AS member_name,
+    mp.PlanID AS plan_id,
+    mp.PlanName AS plan_name,
+    ms.Status AS membership_status,
+    p.PaymentMethod AS payment_method
+FROM Member m
+JOIN Membership ms
+    ON m.MemberID = ms.MemberID
+JOIN MembershipPlan mp
+    ON ms.PlanID = mp.PlanID
+JOIN Payment p
+    ON ms.MembershipID = p.MembershipID
+WHERE ms.Status = '&v_status'
+ORDER BY plan_name,member_name,payment_method;
+
+TTITLE OFF;
+
+PROMPT
+PROMPT Summary for the report:
+PROMPT Member totals: all statuses. Popular plans: &v_status members in the detail report.
+COLUMN summary_line FORMAT A100 HEADING 'Summary'
+
+WITH status_counts AS (
+    SELECT COUNT(DISTINCT CASE WHEN UPPER(TRIM(ms.Status)) = 'ACTIVE' THEN m.MemberID END) AS active_members,
+           COUNT(DISTINCT CASE WHEN UPPER(TRIM(ms.Status)) = 'INACTIVE' THEN m.MemberID END) AS inactive_members
+    FROM Member m
+    JOIN Membership ms ON m.MemberID = ms.MemberID
+), plan_counts AS (
+    SELECT mp.PlanID, mp.PlanName, COUNT(DISTINCT m.MemberID) AS total_members
+    FROM Member m
+    JOIN Membership ms ON m.MemberID = ms.MemberID
+    JOIN MembershipPlan mp ON ms.PlanID = mp.PlanID
+    WHERE ms.Status = '&v_status'
+      AND EXISTS (SELECT 1 FROM Payment p WHERE p.MembershipID = ms.MembershipID)
+    GROUP BY mp.PlanID, mp.PlanName
+)
+SELECT summary_line
+FROM (
+    SELECT 1 AS sort_order, 'Total Active Members: ' || TO_CHAR(active_members) AS summary_line
+    FROM status_counts
+    UNION ALL
+    SELECT 2, 'Total Inactive Members: ' || TO_CHAR(inactive_members) FROM status_counts
+    UNION ALL
+    SELECT 3, 'Most Popular Plan: ' || PlanName || ' (members: ' || TO_CHAR(total_members) || ')'
+    FROM plan_counts
+    WHERE total_members = (SELECT MAX(total_members) FROM plan_counts)
+    UNION ALL
+    SELECT 3, 'Most Popular Plans: none for selected status.' FROM dual
+    WHERE NOT EXISTS (SELECT 1 FROM plan_counts)
+)
+ORDER BY sort_order, summary_line;
+
+COLUMN summary_line CLEAR
+
