@@ -1,0 +1,79 @@
+SET PAGESIZE 50000
+SET LINESIZE 36
+
+COLUMN equipment_name FORMAT A20
+COLUMN coach_name FORMAT A20
+COLUMN total_bookings FORMAT 999
+
+ACCEPT v_start_date PROMPT 'Enter start date (YYYY-MM-DD): '
+ACCEPT v_end_date PROMPT 'Enter end date (YYYY-MM-DD): '
+
+TTITLE CENTER 'Equipment Usage Report' SKIP 2 CENTER 'From &v_start_date to &v_end_date' SKIP 2
+
+SELECT
+    e.EquipmentName AS equipment_name,
+    COUNT(eb.EquipmentBookingID) AS total_bookings
+FROM EquipmentBooking eb
+JOIN Equipment e
+    ON eb.EquipmentID = e.EquipmentID
+WHERE eb.BookingDate BETWEEN
+      TO_DATE('&v_start_date','YYYY-MM-DD')
+  AND TO_DATE('&v_end_date','YYYY-MM-DD')
+GROUP BY e.EquipmentName
+ORDER BY total_bookings DESC,equipment_name;
+
+TTITLE OFF;
+
+PROMPT
+PROMPT Summary for the report:
+PROMPT Reporting Period: &v_start_date to &v_end_date
+SET LINESIZE 110
+COLUMN summary_line FORMAT A100 HEADING 'Summary'
+
+WITH equipment_counts AS (
+    SELECT e.EquipmentName AS equipment_name, COUNT(eb.EquipmentBookingID) AS total_bookings
+    FROM EquipmentBooking eb
+    JOIN Equipment e ON eb.EquipmentID = e.EquipmentID
+    WHERE eb.BookingDate BETWEEN TO_DATE('&v_start_date', 'YYYY-MM-DD')
+                             AND TO_DATE('&v_end_date', 'YYYY-MM-DD')
+    GROUP BY e.EquipmentName
+), usage_limits AS (
+    SELECT MAX(total_bookings) AS most_bookings, MIN(total_bookings) AS least_bookings
+    FROM equipment_counts
+)
+SELECT summary_line
+FROM (
+    SELECT 1 AS sort_order,
+           'Most used equipment: ' || TO_CHAR(COUNT(*)) || ' (bookings each: '
+           || TO_CHAR(u.most_bookings) || ')' AS summary_line
+    FROM equipment_counts e CROSS JOIN usage_limits u
+    WHERE e.total_bookings = u.most_bookings AND u.most_bookings > u.least_bookings
+    GROUP BY u.most_bookings
+    UNION ALL
+    SELECT 2, 'Regularly used equipment: '
+           || TO_CHAR((SELECT COUNT(*) FROM equipment_counts e
+                       WHERE e.total_bookings > u.least_bookings AND e.total_bookings < u.most_bookings))
+           || ' (between ' || TO_CHAR(u.least_bookings) || ' and '
+           || TO_CHAR(u.most_bookings) || ' bookings each, exclusive)'
+    FROM usage_limits u
+    WHERE u.most_bookings > u.least_bookings
+    UNION ALL
+    SELECT 3, 'Least used equipment: ' || TO_CHAR(COUNT(*)) || ' (bookings each: '
+           || TO_CHAR(u.least_bookings) || ')'
+    FROM equipment_counts e CROSS JOIN usage_limits u
+    WHERE e.total_bookings = u.least_bookings AND u.most_bookings > u.least_bookings
+    GROUP BY u.least_bookings
+    UNION ALL
+    SELECT 1, 'All equipment equally used: ' || TO_CHAR(COUNT(*)) || ' (bookings each: '
+           || TO_CHAR(u.most_bookings) || ')'
+    FROM equipment_counts e CROSS JOIN usage_limits u
+    WHERE u.most_bookings = u.least_bookings
+    GROUP BY u.most_bookings
+    UNION ALL
+    SELECT 1, 'No equipment bookings in the selected period.' FROM dual
+    WHERE NOT EXISTS (SELECT 1 FROM equipment_counts)
+)
+ORDER BY sort_order;
+
+COLUMN summary_line CLEAR
+SET LINESIZE 36
